@@ -1,0 +1,77 @@
+version: "3.9"
+
+x-postgres-envs: &postgres-envs
+  POSTGRES_USER: postgres
+  POSTGRES_PASSWORD: password
+  POSTGRES_SERVER: db
+
+services:
+  product-api:
+    build:
+      context: .
+      dockerfile: services/product/src/Dockerfile
+    container_name: product-api
+    command:  uvicorn src.main:app --reload --workers 1 --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      <<: *postgres-envs
+      PRODUCT_DB: product
+      REDIS_HOST: redis
+      API_KEY: 12345
+    depends_on:
+      - db
+      - redis
+
+  order-api:
+    build:
+      context: .
+      dockerfile: services/order/src/Dockerfile
+    container_name: order-api
+    command: uvicorn src.main:app --reload --workers 1 --host 0.0.0.0 --port 8000
+    ports:
+      - "8001:8000"
+    environment:
+      # ORDER_CONN_STR: postgresql+asyncpg://postgres:password@db:5432/order
+      <<: *postgres-envs
+      ORDER_DB: order
+      REDIS_HOST: redis
+    depends_on:
+      - db
+      - redis
+
+  redis:
+      container_name: ms-redis
+      image: redis:7.0.4-alpine
+      restart: always
+      ports:
+        - "6379:6379"
+
+  db:
+    container_name: ms-postgres
+    image: postgres
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=postgres
+    restart: always
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data/
+
+  pgadmin:
+    container_name: ms-pgadmin
+    image: dpage/pgadmin4
+    environment:
+      - PGADMIN_DEFAULT_EMAIL=kemal.sahin.2@deliveryhero.com
+      - PGADMIN_DEFAULT_PASSWORD=12345
+    restart: always
+    ports:
+        - "5050:80"
+    volumes:
+      - pgadmin_data:/root/.pgadmin
+
+volumes:
+  postgres_data:
+  pgadmin_data:
