@@ -1,18 +1,17 @@
 from pydantic import BaseModel
 
 
-class OrderBase(BaseModel):
-    quantity: float
+class OrderPriceUpdate(BaseModel):
     price: float
 
 
-class OrderCreate(OrderBase):
+class OrderUpdate(OrderPriceUpdate):
+    quantity: float
+
+
+class OrderCreate(OrderUpdate):
     product_id: int
     user_id: int
-
-
-class OrderUpdate(OrderBase):
-    pass
 
 
 class Order(OrderCreate):
