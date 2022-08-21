@@ -20,7 +20,7 @@ async def create_product(product: ProductCreate,
             dependencies=[Depends(api_key_auth)])
 async def get_all(service: ProductService = Depends()):
     db_products = await service.get_all()
-    if db_products is None:
+    if len(db_products) == 0:
         raise HTTPException(status_code=404, detail="Products not found.")
     return db_products
 
@@ -42,7 +42,7 @@ async def get_product(product_id: int, service: ProductService = Depends()):
             dependencies=[Depends(api_key_auth)])
 async def update_product(product_id: int, product: ProductUpdate, service: ProductService = Depends()):
     try:
-        return await service.update(product_id, product.dict())
+        return await service.update(product_id, product)
     except HTTPException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
@@ -51,11 +51,11 @@ async def update_product(product_id: int, product: ProductUpdate, service: Produ
               response_model=Product,
               status_code=status.HTTP_200_OK,
               dependencies=[Depends(api_key_auth)])
-async def patch_product(product_id: int, product: dict, service: ProductService = Depends()):
-    db_product = await service.get(product_id)
-    if db_product is None:
-        raise HTTPException(status_code=404, detail="Product not found")
-    return await service.update(product_id, product)
+async def patch_product_quantity(product_id: int, quantity: float, service: ProductService = Depends()):
+    try:
+        return await service.update_quantity(product_id, quantity)
+    except HTTPException as e:
+        raise HTTPException(status_code=e.status_code, detail=e.detail)
 
 
 @router.delete("/{product_id}",
