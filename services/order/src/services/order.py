@@ -3,7 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from src.dependencies import get_db
 from src.models.order import Order
-from src.schemas.order import OrderCreate
+from src.schemas.order import OrderCreate, OrderUpdate, OrderPriceUpdate
 
 
 class OrderService:
@@ -17,10 +17,15 @@ class OrderService:
         await self.db.refresh(db_order)
         return db_order
 
-    async def update(self, order_id: int, order: dict):
-        db_order: Order = await self.get(order_id)
-        for key, value in order.items():
-            setattr(db_order, key, value)
+    async def update(self, db_order: Order, order: OrderUpdate):
+        db_order.quantity = order.quantity
+        db_order.price = order.price
+
+        await self.db.commit()
+        return db_order
+
+    async def update_price(self, db_order: Order, order: OrderPriceUpdate):
+        db_order.price = order.price
 
         await self.db.commit()
         return db_order
