@@ -9,7 +9,7 @@ services:
   product-api:
     build:
       context: .
-      dockerfile: services/product/src/Dockerfile
+      dockerfile: services/product/Dockerfile
     container_name: product-api
     command:  uvicorn src.main:app --reload --workers 1 --host 0.0.0.0 --port 8000
     ports:
@@ -26,7 +26,7 @@ services:
   order-api:
     build:
       context: .
-      dockerfile: services/order/src/Dockerfile
+      dockerfile: services/order/Dockerfile
     container_name: order-api
     command: uvicorn src.main:app --reload --workers 1 --host 0.0.0.0 --port 8000
     ports:
