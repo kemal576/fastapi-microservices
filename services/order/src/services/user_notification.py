@@ -23,8 +23,8 @@ class UserNotificationService:
 
     async def get_by_user_id(self, user_id: int) -> list[UserNotification]:
         stmt = select(UserNotification).where(UserNotification.user_id == user_id)
-        result = await self.db.execute(stmt)
-        return result.scalars().all()
+        result = await self.db.scalars(stmt)
+        return result.all()
 
     async def get_all(self,) -> list[UserNotification]:
         result = await self.db.scalars(select(UserNotification))
