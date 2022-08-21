@@ -32,7 +32,7 @@ async def create_order(order: OrderCreate,
     background_tasks.add_task(produce_event, "order_created", message)
 
     notification = f"Your order({db_order.id}) has successfully been created."
-    background_tasks.add_task(notification_service.create, db_order.user_id, notification)
+    background_tasks.add_task(notification_service.create, user, notification)
     return db_order
 
 
