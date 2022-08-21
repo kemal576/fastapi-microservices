@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from starlette import status
 from src.services.user import UserService
-from src.schemas.user import User, UserCreate, UserUpdate
+from src.schemas.user import User, UserCreate, UserUpdate, UserBase
 from src.utils.auth import basic_auth
 
 router = APIRouter(prefix="/users", tags=["User"])
@@ -20,7 +20,6 @@ async def update_user(user_id: int,
                       user: UserUpdate,
                       service: UserService = Depends(),
                       current_username: str = Depends(basic_auth)):
-
     db_user = await service.get(user_id)
     if db_user is None:
         raise HTTPException(status_code=404, detail="User not found!")
@@ -32,32 +31,26 @@ async def update_user(user_id: int,
     if db_user:
         raise HTTPException(status_code=409, detail="This username already registered!")
 
-    return await service.update(user_id, user.dict())
+    return await service.update(db_user=db_user, user_update=user)
 
 
 @router.patch("/{user_id}", response_model=User)
-async def patch_user(user_id: int,
-                     user: dict,
-                     service: UserService = Depends(),
-                     _: str = Depends(basic_auth)):
-
+async def patch_username(user_id: int,
+                         user: UserBase,
+                         service: UserService = Depends(),
+                         _: str = Depends(basic_auth)):
     db_user = await service.get(user_id)
     if db_user is None:
         raise HTTPException(status_code=404, detail="User not found!")
 
-    uname = user.get("username")
-    if uname is not None:
-        if await service.get_by_username(uname):
-            raise HTTPException(status_code=400, detail="This username already registered!")
-
-    return await service.update(user_id, user)
+    return await service.update_username(db_user=db_user, user=user)
 
 
 @router.get("/", response_model=list[User])
 async def get_all(service: UserService = Depends(),
                   _: str = Depends(basic_auth)):
     db_users = await service.get_all()
-    if db_users is None:
+    if len(db_users) == 0:
         raise HTTPException(status_code=404, detail="Users not found.")
     return db_users
 
