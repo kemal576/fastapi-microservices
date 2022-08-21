@@ -3,8 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from src.dependencies import get_db
 from src.models.user import User
-from src.schemas.user import UserCreate
-from src.utils.hash import get_password_hash
+from src.schemas.user import UserCreate, UserUpdate, UserBase
 
 
 class UserService:
@@ -12,19 +11,21 @@ class UserService:
         self.db = db
 
     async def create(self, user: UserCreate) -> User:
-        pw_hash = get_password_hash(user.password)
-        db_user = User(username=user.username, password=pw_hash)
+        db_user = User(**user.dict())
         self.db.add(db_user)
         await self.db.commit()
         await self.db.refresh(db_user)
         return db_user
 
-    async def update(self, user_id: int, user: dict) -> User:
-        db_user: User = await self.get(user_id)
-        for key, value in user.items():
-            if key == "password":
-                value = get_password_hash(value)
-            setattr(db_user, key, value)
+    async def update(self, db_user: User, user_update: UserUpdate) -> User:
+        db_user.username = user_update.username
+        db_user.password = user_update.password
+
+        await self.db.commit()
+        return db_user
+
+    async def update_username(self, db_user: User, user: UserBase) -> User:
+        db_user.username = user.username
 
         await self.db.commit()
         return db_user
