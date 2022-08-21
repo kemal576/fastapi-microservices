@@ -1,7 +1,6 @@
 FROM python:3.10-alpine
 
-COPY services/product/src /app/src
-COPY services/product/requirements.txt /app
+COPY services/product /app
 
 WORKDIR /app
 
