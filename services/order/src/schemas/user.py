@@ -1,4 +1,6 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, validator
+
+from src.utils.hash import get_password_hash
 
 
 class UserBase(BaseModel):
@@ -7,6 +9,13 @@ class UserBase(BaseModel):
 
 class UserCreate(UserBase):
     password: str
+
+    class Config:
+        validate_assignment = True
+
+    @validator('password')
+    def hash_password(cls, password):
+        return get_password_hash(password)
 
 
 class UserUpdate(UserCreate):
