@@ -16,6 +16,6 @@ class OrderEvents:
             raise Exception(f"Order create event's message is not compatible -> {message}")
 
         product: Product = await service.get(product_id)
-        await service.update(product_id, {"quantity": product.quantity-quantity})
+        await service.update_quantity(product_id, product.quantity-quantity)
 
         print("Order created event triggered. ->", message)
