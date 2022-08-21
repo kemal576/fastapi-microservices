@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from starlette import status
 from src.events.event import produce_event
 from src.services.order import OrderService
-from src.schemas.order import Order, OrderCreate, OrderUpdate
+from src.schemas.order import Order, OrderCreate, OrderUpdate, OrderPriceUpdate
 from src.services.user import UserService
 from src.services.user_notification import UserNotificationService
 from fastapi import BackgroundTasks
@@ -46,12 +46,12 @@ async def update_order(order_id: int,
     if db_order is None:
         raise HTTPException(status_code=404, detail="Order not found!")
 
-    return await service.update(order_id, order.dict())
+    return await service.update(db_order=db_order, order=order)
 
 
 @router.patch("/{order_id}", response_model=Order)
 async def patch_order(order_id: int,
-                      order: dict,
+                      order: OrderPriceUpdate,
                       service: OrderService = Depends(),
                       _: str = Depends(basic_auth)):
 
@@ -59,17 +59,17 @@ async def patch_order(order_id: int,
     if db_order is None:
         raise HTTPException(status_code=404, detail="Order not found!")
 
-    return await service.update(order_id, order)
+    return await service.update_price(db_order=db_order, order=order)
 
 
 @router.get("/", response_model=list[Order])
 async def get_all(service: OrderService = Depends(),
                   _: str = Depends(basic_auth)):
 
-    db_order = await service.get_all()
-    if db_order is None:
+    db_orders = await service.get_all()
+    if len(db_orders) == 0:
         raise HTTPException(status_code=404, detail="Orders not found.")
-    return db_order
+    return db_orders
 
 
 @router.get("/{order_id}", response_model=Order)
