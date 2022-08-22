@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from starlette import status
 from src.services.product import ProductService
-from src.schemas.product import Product, ProductCreate, ProductUpdate
+from src.schemas.product import Product, ProductCreate, ProductUpdate, ProductQuantityUpdate
 from src.utils.auth import api_key_auth
 
 router = APIRouter(prefix="/products", tags=["Product"])
@@ -51,9 +51,9 @@ async def update_product(product_id: int, product: ProductUpdate, service: Produ
               response_model=Product,
               status_code=status.HTTP_200_OK,
               dependencies=[Depends(api_key_auth)])
-async def patch_product_quantity(product_id: int, quantity: float, service: ProductService = Depends()):
+async def patch_product_quantity(product_id: int, product: ProductQuantityUpdate, service: ProductService = Depends()):
     try:
-        return await service.update_quantity(product_id, quantity)
+        return await service.update_quantity(product_id, product.quantity)
     except HTTPException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
