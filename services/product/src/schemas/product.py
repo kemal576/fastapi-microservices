@@ -1,21 +1,20 @@
 from pydantic import BaseModel
 
 
-class ProductBase(BaseModel):
-    name: str
+class ProductQuantityUpdate(BaseModel):
     quantity: float
+
+
+class ProductCreate(ProductQuantityUpdate):
+    name: str
     price: float
 
 
-class ProductCreate(ProductBase):
+class ProductUpdate(ProductCreate):
     pass
 
 
-class ProductUpdate(ProductBase):
-    pass
-
-
-class Product(ProductBase):
+class Product(ProductCreate):
     id: int
 
     class Config:
