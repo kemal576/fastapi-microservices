@@ -11,7 +11,7 @@ from src.utils.auth import basic_auth
 router = APIRouter(prefix="/order", tags=["Order"])
 
 
-@router.post("/", response_model=Order)
+@router.post("/", response_model=Order, status_code=status.HTTP_201_CREATED)
 async def create_order(order: OrderCreate,
                        background_tasks: BackgroundTasks,
                        service: OrderService = Depends(),
@@ -36,7 +36,7 @@ async def create_order(order: OrderCreate,
     return db_order
 
 
-@router.put("/{order_id}", response_model=Order)
+@router.put("/{order_id}", response_model=Order, status_code=status.HTTP_200_OK)
 async def update_order(order_id: int,
                        order: OrderUpdate,
                        service: OrderService = Depends(),
@@ -49,7 +49,7 @@ async def update_order(order_id: int,
     return await service.update(db_order=db_order, order=order)
 
 
-@router.patch("/{order_id}", response_model=Order)
+@router.patch("/{order_id}", response_model=Order, status_code=status.HTTP_200_OK)
 async def patch_order(order_id: int,
                       order: OrderPriceUpdate,
                       service: OrderService = Depends(),
@@ -62,7 +62,7 @@ async def patch_order(order_id: int,
     return await service.update_price(db_order=db_order, order=order)
 
 
-@router.get("/", response_model=list[Order])
+@router.get("/", response_model=list[Order], status_code=status.HTTP_200_OK)
 async def get_all(service: OrderService = Depends(),
                   _: str = Depends(basic_auth)):
 
@@ -72,7 +72,7 @@ async def get_all(service: OrderService = Depends(),
     return db_orders
 
 
-@router.get("/{order_id}", response_model=Order)
+@router.get("/{order_id}", response_model=Order, status_code=status.HTTP_200_OK)
 async def get_order(order_id: int,
                     service: OrderService = Depends(),
                     _: str = Depends(basic_auth)):
