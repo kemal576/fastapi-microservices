@@ -1,4 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
+from starlette import status
+
 from src.schemas.user_notification import UserNotification
 from src.services.user import UserService
 from src.services.user_notification import UserNotificationService
@@ -7,7 +9,7 @@ from src.utils.auth import basic_auth
 router = APIRouter(prefix="/notifications", tags=["User Notifications"])
 
 
-@router.get("/", response_model=list[UserNotification])
+@router.get("/", response_model=list[UserNotification], status_code=status.HTTP_200_OK)
 async def get_all(user_id: int | None = None,
                   service: UserNotificationService = Depends(),
                   user_service: UserService = Depends(),
@@ -30,7 +32,7 @@ async def get_all(user_id: int | None = None,
     return db_notifications
 
 
-@router.get("/{notification_id}", response_model=UserNotification)
+@router.get("/{notification_id}", response_model=UserNotification, status_code=status.HTTP_200_OK)
 async def get_notification(notification_id: int,
                            service: UserNotificationService = Depends(),
                            _: str = Depends(basic_auth)):
