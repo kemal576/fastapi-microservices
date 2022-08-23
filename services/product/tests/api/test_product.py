@@ -4,6 +4,7 @@ from fastapi import HTTPException
 from httpx import AsyncClient
 from src.main import app
 from src.models.product import Product
+from src.schemas.product import ProductCreate, ProductUpdate
 from src.services.product import ProductService
 
 API_KEY_HEADER = {"X-API-KEY": "12345"}
@@ -26,8 +27,8 @@ def anyio_backend():
 
 @pytest.mark.anyio
 async def test_create_product_success(client: AsyncClient, monkeypatch):
-    async def mock_create(self, _):
-        return product
+    async def mock_create(self, p_create: ProductCreate):
+        return Product(id=1, **p_create.dict())
 
     monkeypatch.setattr(ProductService, "create", mock_create)
 
@@ -68,8 +69,8 @@ async def test_get_all_fail(client: AsyncClient, monkeypatch):
 
 @pytest.mark.anyio
 async def test_get_product_success(client: AsyncClient, monkeypatch):
-    async def mock_get(self, _):
-        return product
+    async def mock_get(self, id: int):
+        return Product(id=id, **product_dict)
 
     monkeypatch.setattr(ProductService, "get", mock_get)
 
@@ -97,8 +98,8 @@ async def test_get_product_fail(client: AsyncClient, monkeypatch):
 
 @pytest.mark.anyio
 async def test_update_product_success(client: AsyncClient, monkeypatch):
-    async def mock_update(self, _, x):
-        return product
+    async def mock_update(self, product_id: int, p_update: ProductUpdate):
+        return Product(id=product_id, **p_update.dict())
 
     monkeypatch.setattr(ProductService, "update", mock_update)
 
@@ -125,8 +126,10 @@ async def test_update_product_fail(client: AsyncClient, monkeypatch):
 
 @pytest.mark.anyio
 async def test_patch_quantity_success(client: AsyncClient, monkeypatch):
-    async def mock_patch_quantity(self, _, x):
-        return product
+    async def mock_patch_quantity(self, product_id: int, quantity: float):
+        p = Product(id=product_id, **product_dict)
+        p.quantity = quantity
+        return p
 
     monkeypatch.setattr(ProductService, "update_quantity", mock_patch_quantity)
 
@@ -137,11 +140,11 @@ async def test_patch_quantity_success(client: AsyncClient, monkeypatch):
 
     # then
     assert response.status_code == 200
-    assert Product(**response.json()).quantity == product.quantity
+    assert Product(**response.json()).quantity == payload.get("quantity")
 
 
 @pytest.mark.anyio
-async def test_patch_auth_fail(client: AsyncClient, monkeypatch):
+async def test_auth_fail(client: AsyncClient):
     # when
     response = await client.patch(url="/products/1",
                                   json={"test": "test"},
