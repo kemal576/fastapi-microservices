@@ -25,7 +25,6 @@ async def create_order(order: OrderCreate,
 
     if current_username != user.username:
         raise HTTPException(status_code=403, detail="You can't create order for other users.")
-
     db_order = await service.create(order)
 
     message = {"product_id": db_order.product_id, "quantity": db_order.quantity}
