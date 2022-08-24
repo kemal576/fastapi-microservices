@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException
 from starlette import status
-from src.events.event import produce_event
+from src.events.order import OrderEvents
 from src.services.order import OrderService
 from src.schemas.order import Order, OrderCreate, OrderUpdate, OrderPriceUpdate
 from src.services.user import UserService
@@ -29,7 +29,7 @@ async def create_order(order: OrderCreate,
     db_order = await service.create(order)
 
     message = {"product_id": db_order.product_id, "quantity": db_order.quantity}
-    background_tasks.add_task(produce_event, "order_created", message)
+    background_tasks.add_task(OrderEvents.produce_event, "order_created", message)
 
     notification = f"Your order({db_order.id}) has successfully been created."
     background_tasks.add_task(notification_service.create, user, notification)
