@@ -27,8 +27,8 @@ async def update_user(user_id: int,
     if db_user.username != current_username:
         raise HTTPException(status_code=403, detail="You can't update other users data!")
 
-    db_user = await service.get_by_username(user.username)
-    if db_user:
+    user_check = await service.get_by_username(user.username)
+    if user_check:
         raise HTTPException(status_code=409, detail="This username already registered!")
 
     return await service.update(db_user=db_user, user_update=user)
