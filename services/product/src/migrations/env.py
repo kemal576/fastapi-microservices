@@ -10,7 +10,7 @@ from alembic import context
 from src.config import Settings
 
 config = context.config
-config.set_main_option("sqlalchemy.url", Settings.POSTGRES_CONN_STR)
+config.set_main_option("sqlalchemy.url", Settings.PRODUCT_CONN_STR)
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
 if config.config_file_name is not None:
