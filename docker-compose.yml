@@ -4,6 +4,7 @@ x-postgres-envs: &postgres-envs
   POSTGRES_USER: postgres
   POSTGRES_PASSWORD: password
   POSTGRES_SERVER: db
+  TEST_DB: testdb
 
 services:
   product-api:
