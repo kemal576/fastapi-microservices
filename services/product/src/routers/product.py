@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from starlette import status
 from src.services.product import ProductService
-from src.schemas.product import Product, ProductCreate, ProductUpdate, ProductQuantityUpdate
+from src.schemas.product import Product, ProductBase, ProductPatch
 from src.utils.auth import api_key_auth
 
 router = APIRouter(prefix="/products", tags=["Product"])
@@ -10,7 +10,7 @@ router = APIRouter(prefix="/products", tags=["Product"])
 @router.post("/", response_model=Product,
              status_code=status.HTTP_201_CREATED,
              dependencies=[Depends(api_key_auth)])
-async def create_product(product: ProductCreate,
+async def create_product(product: ProductBase,
                          service: ProductService = Depends()):
     return await service.create(product)
 
@@ -40,9 +40,9 @@ async def get_product(product_id: int, service: ProductService = Depends()):
             response_model=Product,
             status_code=status.HTTP_200_OK,
             dependencies=[Depends(api_key_auth)])
-async def update_product(product_id: int, product: ProductUpdate, service: ProductService = Depends()):
+async def update_product(product_id: int, product: ProductBase, service: ProductService = Depends()):
     try:
-        return await service.update(product_id, product)
+        return await service.update(product_id, product.dict())
     except HTTPException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
@@ -51,9 +51,11 @@ async def update_product(product_id: int, product: ProductUpdate, service: Produ
               response_model=Product,
               status_code=status.HTTP_200_OK,
               dependencies=[Depends(api_key_auth)])
-async def patch_product_quantity(product_id: int, product: ProductQuantityUpdate, service: ProductService = Depends()):
+async def patch_product(product_id: int, product: ProductPatch, service: ProductService = Depends()):
+    updated_data = product.dict(exclude_unset=True)
+
     try:
-        return await service.update_quantity(product_id, product.quantity)
+        return await service.update(product_id, updated_data)
     except HTTPException as e:
         raise HTTPException(status_code=e.status_code, detail=e.detail)
 
