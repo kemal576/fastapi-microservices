@@ -1,81 +1,46 @@
-from typing import AsyncGenerator
 import pytest
-from fastapi import HTTPException
+from faker import Faker
 from httpx import AsyncClient
+from src.dependencies import get_db
 from src.main import app
 from src.models.product import Product
-from src.schemas.product import ProductCreate, ProductUpdate
-from src.services.product import ProductService
+from tests.test_db import override_get_db
 
-API_KEY_HEADER = {"X-API-KEY": "12345"}
+faker = Faker()
+app.dependency_overrides[get_db] = override_get_db
 
 product_dict: dict = {"name": "test_name", "quantity": 20, "price": 30}
 product = Product(**product_dict)
 product.id = 1
 
 
-@pytest.fixture
-async def client() -> AsyncGenerator:
-    async with AsyncClient(app=app, base_url="http://localhost") as client:
-        yield client
-
-
-@pytest.fixture
-def anyio_backend():
-    return 'asyncio'
-
-
 @pytest.mark.anyio
-async def test_create_product_success(client: AsyncClient, monkeypatch):
-    async def mock_create(self, p_create: ProductCreate):
-        return Product(id=1, **p_create.dict())
-
-    monkeypatch.setattr(ProductService, "create", mock_create)
-
+async def test_create_product_success(client: AsyncClient,
+                                      internal_request_headers):
     # when
-    response = await client.post(url="/products/", json=product_dict, headers=API_KEY_HEADER)
+    response = await client.post(url="/products/", json=product_dict, headers=internal_request_headers)
 
     # then
     assert response.status_code == 201
 
 
 @pytest.mark.anyio
-async def test_get_all_success(client: AsyncClient, monkeypatch):
-    async def mock_get_all(self):
-        return [product]
-
-    monkeypatch.setattr(ProductService, "get_all", mock_get_all)
+async def test_get_all_success(client: AsyncClient,
+                               internal_request_headers):
 
     # when
-    response = await client.get(url="/products/", headers=API_KEY_HEADER)
+    response = await client.get(url="/products/", headers=internal_request_headers)
 
     # then
     assert response.status_code == 200
 
 
 @pytest.mark.anyio
-async def test_get_all_fail(client: AsyncClient, monkeypatch):
-    async def mock_get_all(self):
-        return []
-
-    monkeypatch.setattr(ProductService, "get_all", mock_get_all)
+async def test_get_product_success(client: AsyncClient,
+                                   internal_request_headers):
 
     # when
-    response = await client.get(url="/products/", headers=API_KEY_HEADER)
-
-    # then
-    assert response.status_code == 404
-
-
-@pytest.mark.anyio
-async def test_get_product_success(client: AsyncClient, monkeypatch):
-    async def mock_get(self, id: int):
-        return Product(id=id, **product_dict)
-
-    monkeypatch.setattr(ProductService, "get", mock_get)
-
-    # when
-    response = await client.get(url="/products/1", headers=API_KEY_HEADER)
+    response = await client.get(url="/products/1", headers=internal_request_headers)
 
     # then
     assert response.status_code == 200
@@ -83,72 +48,60 @@ async def test_get_product_success(client: AsyncClient, monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_get_product_fail(client: AsyncClient, monkeypatch):
-    async def mock_get(self, _):
-        return None
-
-    monkeypatch.setattr(ProductService, "get", mock_get)
+async def test_get_product_fail(client: AsyncClient,
+                                internal_request_headers):
 
     # when
-    response = await client.get(url="/products/1", headers=API_KEY_HEADER)
+    response = await client.get(url="/products/0", headers=internal_request_headers)
 
     # then
     assert response.status_code == 404
 
 
 @pytest.mark.anyio
-async def test_update_product_success(client: AsyncClient, monkeypatch):
-    async def mock_update(self, product_id: int, p_update: ProductUpdate):
-        return Product(id=product_id, **p_update.dict())
-
-    monkeypatch.setattr(ProductService, "update", mock_update)
+async def test_update_product_success(client: AsyncClient,
+                                      internal_request_headers):
 
     # when
-    response = await client.put(url="/products/1", json=product_dict, headers=API_KEY_HEADER)
+    response = await client.put(url="/products/1", json=product_dict, headers=internal_request_headers)
 
     # then
     assert response.status_code == 200
 
 
 @pytest.mark.anyio
-async def test_update_product_fail(client: AsyncClient, monkeypatch):
-    async def mock_update(self, _, x):
-        raise HTTPException(status_code=404, detail="Product not found")
-
-    monkeypatch.setattr(ProductService, "update", mock_update)
+async def test_update_product_fail(client: AsyncClient,
+                                   internal_request_headers):
 
     # when
-    response = await client.put(url="/products/1", json=product_dict, headers=API_KEY_HEADER)
+    response = await client.put(url="/products/0", json=product_dict, headers=internal_request_headers)
 
     # then
     assert response.status_code == 404
 
 
 @pytest.mark.anyio
-async def test_patch_quantity_success(client: AsyncClient, monkeypatch):
-    async def mock_patch_quantity(self, product_id: int, quantity: float):
-        p = Product(id=product_id, **product_dict)
-        p.quantity = quantity
-        return p
+async def test_patch_success(client: AsyncClient,
+                             internal_request_headers):
 
-    monkeypatch.setattr(ProductService, "update_quantity", mock_patch_quantity)
-
-    payload = {"quantity": 15}
+    payload = {"quantity": 15, "name": "new name"}
 
     # when
-    response = await client.patch(url="/products/1", json=payload, headers=API_KEY_HEADER)
+    response = await client.patch(url="/products/1", json=payload, headers=internal_request_headers)
 
     # then
+    print(response.json())
     assert response.status_code == 200
     assert Product(**response.json()).quantity == payload.get("quantity")
 
 
 @pytest.mark.anyio
-async def test_auth_fail(client: AsyncClient):
+async def test_auth_fail(client: AsyncClient, internal_request_headers):
+    wrong_key_header = {"X-API-KEY": faker.pystr(max_chars=10)}
     # when
     response = await client.patch(url="/products/1",
-                                  json={"test": "test"},
-                                  headers={"X-API-KEY": "wrong_key_123"})
+                                  json=product_dict,
+                                  headers=wrong_key_header)
 
     # then
     assert response.status_code == 401
