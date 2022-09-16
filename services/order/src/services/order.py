@@ -1,9 +1,10 @@
 from fastapi import Depends
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from src.dependencies import get_db
 from src.models.order import Order
-from src.schemas.order import OrderCreate, OrderUpdate, OrderPriceUpdate
+from src.schemas.order import OrderCreate
 
 
 class OrderService:
@@ -17,17 +18,11 @@ class OrderService:
         await self.db.refresh(db_order)
         return db_order
 
-    async def update(self, db_order: Order, order: OrderUpdate):
-        db_order.quantity = order.quantity
-        db_order.price = order.price
-
+    async def update(self, db_order: Order, order: dict):
+        stmt = update(Order).where(Order.id == db_order.id).values(**order)
+        await self.db.execute(stmt)
         await self.db.commit()
-        return db_order
-
-    async def update_price(self, db_order: Order, order: OrderPriceUpdate):
-        db_order.price = order.price
-
-        await self.db.commit()
+        await self.db.refresh(db_order)
         return db_order
 
     async def get(self, order_id: int):
