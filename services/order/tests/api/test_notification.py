@@ -1,41 +1,25 @@
-from typing import AsyncGenerator
+import random
+from typing import Callable
+
 import pytest
+from fastapi import Depends
 from httpx import AsyncClient
+from src.dependencies import get_db
 from src.main import app
-from src.models.user import User
 from src.models.user_notification import UserNotification
 from src.services.user import UserService
-from src.services.user_notification import UserNotificationService
 from src.utils.auth import basic_auth
-
-ntf_dict: dict = {"user_id": 1, "message": "test_message"}
-ntf_example = UserNotification(id=1, **ntf_dict)
-
-
-async def override_auth(username: str = "test_username"):
-    return username
+from tests.conftest import override_auth
+from tests.test_db import override_get_db
+from tests.factories.factories import notification_create_data
 
 
+app.dependency_overrides[get_db] = override_get_db
 app.dependency_overrides[basic_auth] = override_auth
 
 
-@pytest.fixture
-async def client() -> AsyncGenerator:
-    async with AsyncClient(app=app, base_url="http://localhost") as client:
-        yield client
-
-
-@pytest.fixture
-def anyio_backend():
-    return 'asyncio'
-
-
 @pytest.mark.anyio
-async def test_get_all_success(client: AsyncClient, monkeypatch):
-    async def mock_get_all(self):
-        return [ntf_example]
-
-    monkeypatch.setattr(UserNotificationService, "get_all", mock_get_all)
+async def test_get_all_success(client: AsyncClient, notification_create_data: Callable):
 
     # when
     response = await client.get(url="/notifications/")
@@ -45,64 +29,40 @@ async def test_get_all_success(client: AsyncClient, monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_get_all_fail(client: AsyncClient, monkeypatch):
-    async def mock_get_all(self):
-        return []
+async def test_get_by_user_id(client: AsyncClient, monkeypatch):
+    test_id = random.randint(1, 5)
+    async def override_auth_update(id: int = test_id,
+                                   user_service: UserService = Depends()):
+        user = await user_service.get(id)
+        return user.username
 
-    monkeypatch.setattr(UserNotificationService, "get_all", mock_get_all)
-
+    app.dependency_overrides[basic_auth] = override_auth_update
     # when
-    response = await client.get(url="/notifications/")
+    response = await client.get(url="/notifications/", params={"user_id": test_id})
 
-    # then
-    assert response.status_code == 404
-
-
-# @pytest.mark.anyio
-# async def test_get_by_user_id(client: AsyncClient, monkeypatch):
-#     async def mock_get_by_user_id(self, user_id):
-#         ntf = UserNotification(id=1, user_id=user_id)
-#         return [ntf]
-#
-#     async def mock_get_user(self, user_id: int):
-#         return User(id=user_id, username="test_username")
-#
-#     monkeypatch.setattr(UserService, "get", mock_get_user)
-#     monkeypatch.setattr(UserNotificationService, "get_by_user_id", mock_get_by_user_id)
-#
-#     # when
-#     response = await client.get(url="/notifications/", params={"user_id": 1})
-#
-#     # then
-#     #print(response.json())
-#     assert response.status_code == 200
-#     # assert UserNotification(**response.json()[0]).user_id == ntf_example.id
-
-
-@pytest.mark.anyio
-async def test_get_ntf_success(client: AsyncClient, monkeypatch):
-    async def mock_get(self, notification_id: int):
-        return UserNotification(id=notification_id, **ntf_dict)
-
-    monkeypatch.setattr(UserNotificationService, "get", mock_get)
-
-    # when
-    response = await client.get(url="/notifications/1")
+    app.dependency_overrides[basic_auth] = override_auth
 
     # then
     assert response.status_code == 200
-    assert UserNotification(**response.json()).id == ntf_example.id
 
 
 @pytest.mark.anyio
-async def test_get_ntf_fail(client: AsyncClient, monkeypatch):
-    async def mock_get(self, _):
-        return None
-
-    monkeypatch.setattr(UserNotificationService, "get", mock_get)
+async def test_get_ntf_success(client: AsyncClient, notification_create_data: Callable):
+    test_id = random.randint(1, 5)
 
     # when
-    response = await client.get(url="/notifications/1")
+    response = await client.get(url=f"/notifications/{test_id}")
+
+    # then
+    assert response.status_code == 200
+    assert UserNotification(**response.json()).id == test_id
+
+
+@pytest.mark.anyio
+async def test_get_ntf_fail(client: AsyncClient):
+
+    # when
+    response = await client.get(url="/notifications/0")
 
     # then
     assert response.status_code == 404
