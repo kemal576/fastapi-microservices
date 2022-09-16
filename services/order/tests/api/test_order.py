@@ -1,70 +1,52 @@
-from typing import AsyncGenerator
+import random
+from typing import Callable
 import pytest
-from fastapi import HTTPException
+from fastapi import Depends
 from httpx import AsyncClient
+from src.dependencies import get_db
 from src.events.order import OrderEvents
 from src.main import app
 from src.models.order import Order
-from src.models.user import User
-from src.schemas.order import OrderCreate, OrderUpdate, OrderPriceUpdate
-from src.services.order import OrderService
 from src.services.user import UserService
-from src.services.user_notification import UserNotificationService
 from src.utils.auth import basic_auth
+from tests.conftest import override_auth
+from tests.test_db import override_get_db
+from tests.factories.factories import order_create_data
 
-order_dict: dict = {"product_id": 1, "user_id": 1, "quantity": 30, "price": 200}
-order_example = Order(id=1, **order_dict)
 
-
-async def override_auth(username: str = "test_username"):
-    return username
-
+app.dependency_overrides[get_db] = override_get_db
 app.dependency_overrides[basic_auth] = override_auth
 
 
-@pytest.fixture
-async def client() -> AsyncGenerator:
-    async with AsyncClient(app=app, base_url="http://localhost") as client:
-        yield client
-
-
-@pytest.fixture
-def anyio_backend():
-    return 'asyncio'
-
-
 @pytest.mark.anyio
-async def test_create_order_success(client: AsyncClient, monkeypatch):
-    async def mock_get(self, user_id):
-        return User(id=user_id, username="test_username")
-
-    async def mock_create_order(self, order: OrderCreate):
-        return Order(id=1, **order.dict())
-
-    async def mock_create_notification(self, x, y):
-        print("Notification creation process mocked.")
-
-    async def mock_create_event(self, x):
+async def test_create_order_success(client: AsyncClient, order_create_data: Callable, monkeypatch):
+    # Mocking order creation event
+    async def mock_create_event(self, _):
         print("Event creation process mocked.")
 
-    monkeypatch.setattr(UserService, "get", mock_get)
-    monkeypatch.setattr(OrderService, "create", mock_create_order)
-    monkeypatch.setattr(UserNotificationService, "create", mock_create_notification)
     monkeypatch.setattr(OrderEvents, "produce_event", mock_create_event)
 
+    # given
+    payload = order_create_data()
+
+    async def override_auth_update(id: int = payload.get("user_id"),
+                                   user_service: UserService = Depends()):
+        user = await user_service.get(id)
+        return user.username
+
+    app.dependency_overrides[basic_auth] = override_auth_update
+
     # when
-    response = await client.post(url="/order/", json=order_dict)
+    response = await client.post(url="/order/", json=payload)
+
+    app.dependency_overrides[basic_auth] = override_auth
 
     # then
     assert response.status_code == 201
 
 
 @pytest.mark.anyio
-async def test_get_all_success(client: AsyncClient, monkeypatch):
-    async def mock_get_all(self):
-        return [order_example]
-
-    monkeypatch.setattr(OrderService, "get_all", mock_get_all)
+async def test_get_all_success(client: AsyncClient):
 
     # when
     response = await client.get(url="/order/")
@@ -73,104 +55,96 @@ async def test_get_all_success(client: AsyncClient, monkeypatch):
     assert response.status_code == 200
 
 
-@pytest.mark.anyio
-async def test_get_all_fail(client: AsyncClient, monkeypatch):
-    async def mock_get_all(self):
-        return []
-
-    monkeypatch.setattr(OrderService, "get_all", mock_get_all)
-
-    # when
-    response = await client.get(url="/order/")
-
-    # then
-    assert response.status_code == 404
+# @pytest.mark.anyio
+# async def test_get_all_fail(client: AsyncClient):
+#
+#     # when
+#     response = await client.get(url="/order/")
+#
+#     # then
+#     assert response.status_code == 404
 
 
 @pytest.mark.anyio
-async def test_get_order_success(client: AsyncClient, monkeypatch):
-    async def mock_get(self, order_id: int):
-        order = Order(id=order_id, **order_dict)
-        return order
-
-    monkeypatch.setattr(OrderService, "get", mock_get)
+async def test_get_order_success(client: AsyncClient):
+    test_id = random.randint(1, 5)
 
     # when
-    response = await client.get(url="/order/1")
+    response = await client.get(url=f"/order/{test_id}")
 
     # then
     assert response.status_code == 200
-    assert Order(**response.json()).id == order_example.id
+    assert Order(**response.json()).id == test_id
 
 
 @pytest.mark.anyio
-async def test_get_order_fail(client: AsyncClient, monkeypatch):
-    async def mock_get(self, _):
-        return None
-
-    monkeypatch.setattr(OrderService, "get", mock_get)
+async def test_get_order_fail(client: AsyncClient):
 
     # when
-    response = await client.get(url="/order/1")
+    response = await client.get(url="/order/0")
 
     # then
     assert response.status_code == 404
 
 
 @pytest.mark.anyio
-async def test_update_order_success(client: AsyncClient, monkeypatch):
-    async def mock_get(self, order_id: int):
-        order = Order(id=order_id, **order_dict)
-        return order
+async def test_update_order_success(client: AsyncClient):
+    test_id = random.randint(1, 5)
 
-    async def mock_update(self, db_order: Order, order: OrderUpdate):
-        db_order.quantity = order.quantity
-        db_order.price = order.price
-        return db_order
-
-    monkeypatch.setattr(OrderService, "get", mock_get)
-    monkeypatch.setattr(OrderService, "update", mock_update)
-
-    order_update = {"price": 150, "quantity": 50}
+    order_update_dict = {"price": 150, "quantity": 50}
 
     # when
-    response = await client.put(url="/order/1", json=order_update)
-
+    response = await client.put(url=f"/order/{test_id}", json=order_update_dict)
+    updated_order = Order(**response.json())
     # then
     assert response.status_code == 200
+    assert updated_order.price == order_update_dict.get("price")
+    assert updated_order.quantity == order_update_dict.get("quantity")
 
 
 @pytest.mark.anyio
-async def test_update_order_fail(client: AsyncClient, monkeypatch):
-    async def mock_get(self, _):
-        raise HTTPException(status_code=404, detail="Order not found")
-
-    monkeypatch.setattr(OrderService, "get", mock_get)
+async def test_update_order_fail(client: AsyncClient):
     order_update = {"price": 150, "quantity": 50}
     # when
-    response = await client.put(url="/order/1", json=order_update)
+    response = await client.put(url="/order/0", json=order_update)
 
     # then
     assert response.status_code == 404
 
 
 @pytest.mark.anyio
-async def test_patch_price_success(client: AsyncClient, monkeypatch):
-    async def mock_get(self, user_id: int):
-        return Order(id=user_id, **order_dict)
-
-    async def mock_patch_price(self, db_order: Order, order: OrderPriceUpdate):
-        db_order.price = order.price
-        return db_order
-
-    monkeypatch.setattr(OrderService, "get", mock_get)
-    monkeypatch.setattr(OrderService, "update_price", mock_patch_price)
+async def test_patch_success(client: AsyncClient):
+    test_id = random.randint(1, 5)
 
     payload = {"price": 180}
 
     # when
-    response = await client.patch(url="/order/1", json=payload)
+    response = await client.patch(url=f"/order/{test_id}", json=payload)
 
     # then
     assert response.status_code == 200
     assert Order(**response.json()).price == payload.get("price")
+
+
+@pytest.mark.anyio
+async def test_patch_fail(client: AsyncClient):
+    test_id = random.randint(1, 5)
+
+    payload = {"not_real_variable": 180}
+
+    # when
+    response = await client.patch(url=f"/order/{test_id}", json=payload)
+
+    # then
+    assert response.status_code == 422
+
+
+@pytest.mark.anyio
+async def test_delete_success(client: AsyncClient):
+    app.dependency_overrides[basic_auth] = override_auth
+
+    test_id = random.randint(1, 5)
+    response = await client.delete(url=f"/users/{test_id}")
+    assert response.status_code == 204
+
+

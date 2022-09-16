@@ -1,59 +1,35 @@
-from typing import AsyncGenerator
+import random
+from typing import Callable
 import pytest
-from fastapi import HTTPException
+from fastapi import HTTPException, Depends
 from httpx import AsyncClient
+from src.dependencies import get_db
 from src.main import app
 from src.models.user import User
-from src.schemas.user import UserUpdate, UserBase, UserCreate
 from src.services.user import UserService
 from src.utils.auth import basic_auth
+from tests.conftest import override_auth
+from tests.test_db import override_get_db
+from tests.factories.factories import user_create_data
 
-user_dict: dict = {"username": "test_username", "password": "test_pass"}
-user_example = User(id=1, **user_dict)
-
-
-async def override_auth(username: str = "test_username"):
-    return username
-
+app.dependency_overrides[get_db] = override_get_db
 app.dependency_overrides[basic_auth] = override_auth
 
 
-@pytest.fixture
-async def client() -> AsyncGenerator:
-    async with AsyncClient(app=app, base_url="http://localhost") as client:
-        yield client
-
-
-@pytest.fixture
-def anyio_backend():
-    return 'asyncio'
-
-
 @pytest.mark.anyio
-async def test_create_user_success(client: AsyncClient, monkeypatch):
-    async def mock_get_by_username(self, username: str):
-        return None
-
-    async def mock_create(self, user: UserCreate):
-        return User(id=1, **user.dict())
-
-    monkeypatch.setattr(UserService, "get_by_username", mock_get_by_username)
-    monkeypatch.setattr(UserService, "create", mock_create)
+async def test_create_user_success(client: AsyncClient, user_create_data: Callable):
+    # given
+    payload = user_create_data()
 
     # when
-    response = await client.post(url="/users/", json=user_dict)
+    response = await client.post(url="/users/", json=payload)
 
     # then
     assert response.status_code == 201
 
 
 @pytest.mark.anyio
-async def test_get_all_success(client: AsyncClient, monkeypatch):
-    async def mock_get_all(self):
-        return [user_example]
-
-    monkeypatch.setattr(UserService, "get_all", mock_get_all)
-
+async def test_get_all_success(client: AsyncClient):
     # when
     response = await client.get(url="/users/")
 
@@ -62,100 +38,64 @@ async def test_get_all_success(client: AsyncClient, monkeypatch):
 
 
 @pytest.mark.anyio
-async def test_get_all_fail(client: AsyncClient, monkeypatch):
-    async def mock_get_all(self):
-        return []
-
-    monkeypatch.setattr(UserService, "get_all", mock_get_all)
+async def test_get_user_success(client: AsyncClient):
+    test_id = random.randint(1, 5)
 
     # when
-    response = await client.get(url="/users/")
-
-    # then
-    assert response.status_code == 404
-
-
-@pytest.mark.anyio
-async def test_get_user_success(client: AsyncClient, monkeypatch):
-    async def mock_get(self, user_id: int):
-        user = User(id=user_id, **user_dict)
-        return user
-
-    monkeypatch.setattr(UserService, "get", mock_get)
-
-    # when
-    response = await client.get(url="/users/1")
+    response = await client.get(url=f"/users/{test_id}")
 
     # then
     assert response.status_code == 200
-    assert User(**response.json()).id == user_example.id
+    assert User(**response.json()).id == test_id
 
 
 @pytest.mark.anyio
-async def test_get_user_fail(client: AsyncClient, monkeypatch):
-    async def mock_get(self, _):
-        return None
-
-    monkeypatch.setattr(UserService, "get", mock_get)
-
+async def test_get_user_fail(client: AsyncClient):
     # when
-    response = await client.get(url="/users/1")
+    response = await client.get(url="/users/0")
 
     # then
     assert response.status_code == 404
 
 
 @pytest.mark.anyio
-async def test_update_user_success(client: AsyncClient, monkeypatch):
-    async def mock_get(self, user_id: int):
-        user = User(id=user_id, **user_dict)
-        return user
+async def test_update_user_success(client: AsyncClient, user_create_data: Callable):
+    test_id = random.randint(1, 5)
 
-    async def mock_update(self, db_user: User, user_update: UserUpdate):
-        return User(id=db_user.id, **user_update.dict())
+    async def override_auth_update(id: int = test_id,
+                                   user_service: UserService = Depends()):
+        user = await user_service.get(id)
+        return user.username
 
-    async def mock_get_by_username(self, username: str):
-        return None
+    app.dependency_overrides[basic_auth] = override_auth_update
 
-    monkeypatch.setattr(UserService, "get", mock_get)
-    monkeypatch.setattr(UserService, "update", mock_update)
-    monkeypatch.setattr(UserService, "get_by_username", mock_get_by_username)
-
-    user_update_dict = {"username": "test_username_2", "password": "test_pass"}
+    # given
+    user_update_dict = user_create_data()
 
     # when
-    response = await client.put(url="/users/1", json=user_update_dict)
+    response = await client.put(url=f"/users/{test_id}", json=user_update_dict)
 
     # then
     assert response.status_code == 200
 
 
 @pytest.mark.anyio
-async def test_update_user_fail(client: AsyncClient, monkeypatch):
-    async def mock_get(self, _):
-        raise HTTPException(status_code=404, detail="User not found")
+async def test_update_user_fail(client: AsyncClient, user_create_data: Callable):
+    async def override_auth_update(username: str = "not_real_username"):
+        return username
 
-    monkeypatch.setattr(UserService, "get", mock_get)
-    user_update = {"username": "test_name", "password": "test_pass"}
+    app.dependency_overrides[basic_auth] = override_auth_update
+
+    user_update = user_create_data()
     # when
-    response = await client.put(url="/users/1", json=user_update)
+    response = await client.put(url=f"/users/1", json=user_update)
 
     # then
-    assert response.status_code == 404
+    assert response.status_code == 403
 
 
 @pytest.mark.anyio
-async def test_patch_username_success(client: AsyncClient, monkeypatch):
-    async def mock_get(self, user_id: int):
-        return User(id=user_id, **user_dict)
-
-    async def mock_patch_username(self, db_user: User, user: UserBase):
-        db_user.username = user.username
-        return db_user
-
-    monkeypatch.setattr(UserService, "get", mock_get)
-    monkeypatch.setattr(UserService, "update_username", mock_patch_username)
-
+async def test_patch_success(client: AsyncClient):
     payload = {"username": "test_username_2"}
 
     # when
@@ -168,7 +108,7 @@ async def test_patch_username_success(client: AsyncClient, monkeypatch):
 
 @pytest.mark.anyio
 async def test_basic_auth_fail(client: AsyncClient):
-    async def override_auth_fail(username: str = ""):
+    async def override_auth_fail(_: str = ""):
         raise HTTPException(status_code=401, detail="forbidden")
 
     app.dependency_overrides[basic_auth] = override_auth_fail
@@ -176,3 +116,11 @@ async def test_basic_auth_fail(client: AsyncClient):
     response = await client.get(url="/users/")
     assert response.status_code == 401
 
+
+@pytest.mark.anyio
+async def test_delete_success(client: AsyncClient):
+    app.dependency_overrides[basic_auth] = override_auth
+
+    test_id = random.randint(1, 5)
+    response = await client.delete(url=f"/users/{test_id}")
+    assert response.status_code == 204
