@@ -1,12 +1,14 @@
 from pydantic import BaseModel
 
 
-class OrderPriceUpdate(BaseModel):
+class OrderUpdate(BaseModel):
     price: float
-
-
-class OrderUpdate(OrderPriceUpdate):
     quantity: float
+
+
+class OrderPatch(OrderUpdate):
+    price: float | None = None
+    quantity: float | None = None
 
 
 class OrderCreate(OrderUpdate):
