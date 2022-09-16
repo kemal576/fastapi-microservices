@@ -11,5 +11,5 @@ class User(Base):
     username = Column(String, unique=True, nullable=False, index=True)
     password = Column(String, unique=True, nullable=False)
 
-    orders = relationship("Order", back_populates="user")
-    notifications = relationship("UserNotification", back_populates="user")
+    orders = relationship("Order", back_populates="user", cascade="all, delete-orphan")
+    notifications = relationship("UserNotification", back_populates="user", cascade="all, delete-orphan")
