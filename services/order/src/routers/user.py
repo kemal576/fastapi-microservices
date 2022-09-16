@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException
 from starlette import status
 from src.services.user import UserService
-from src.schemas.user import User, UserCreate, UserUpdate, UserBase
+from src.schemas.user import User, UserCreate, UserPatch
 from src.utils.auth import basic_auth
 
 router = APIRouter(prefix="/users", tags=["User"])
@@ -17,7 +17,7 @@ async def create_user(user: UserCreate, service: UserService = Depends()):
 
 @router.put("/{user_id}", response_model=User, status_code=status.HTTP_200_OK)
 async def update_user(user_id: int,
-                      user: UserUpdate,
+                      user: UserCreate,
                       service: UserService = Depends(),
                       current_username: str = Depends(basic_auth)):
     db_user = await service.get(user_id)
@@ -31,19 +31,23 @@ async def update_user(user_id: int,
     if user_check:
         raise HTTPException(status_code=409, detail="This username already registered!")
 
-    return await service.update(db_user=db_user, user_update=user)
+    return await service.update(db_user=db_user, user_update=user.dict())
 
 
 @router.patch("/{user_id}", response_model=User, status_code=status.HTTP_200_OK)
-async def patch_username(user_id: int,
-                         user: UserBase,
-                         service: UserService = Depends(),
-                         _: str = Depends(basic_auth)):
+async def patch_user(user_id: int,
+                     user: UserPatch,
+                     service: UserService = Depends(),
+                     _: str = Depends(basic_auth)):
+    updated_data = user.dict(exclude_unset=True)
+    if not updated_data:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
+
     db_user = await service.get(user_id)
     if db_user is None:
         raise HTTPException(status_code=404, detail="User not found!")
 
-    return await service.update_username(db_user=db_user, user=user)
+    return await service.update(db_user=db_user, user_update=updated_data)
 
 
 @router.get("/", response_model=list[User], status_code=status.HTTP_200_OK)
