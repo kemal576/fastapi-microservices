@@ -1,5 +1,4 @@
 from pydantic import BaseModel, validator
-
 from src.utils.hash import get_password_hash
 
 
@@ -18,14 +17,13 @@ class UserCreate(UserBase):
         return get_password_hash(password)
 
 
-class UserUpdate(UserCreate):
-    pass
+class UserPatch(UserCreate):
+    username: str | None = None
+    password: str | None = None
 
 
 class User(UserBase):
     id: int
-    # orders: list[Order] = []
-    # notifications: list[UserNotification] = []
 
     class Config:
         orm_mode = True
