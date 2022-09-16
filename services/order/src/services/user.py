@@ -1,9 +1,10 @@
 from fastapi import Depends
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from src.dependencies import get_db
 from src.models.user import User
-from src.schemas.user import UserCreate, UserUpdate, UserBase
+from src.schemas.user import UserCreate
 
 
 class UserService:
@@ -17,17 +18,11 @@ class UserService:
         await self.db.refresh(db_user)
         return db_user
 
-    async def update(self, db_user: User, user_update: UserUpdate) -> User:
-        db_user.username = user_update.username
-        db_user.password = user_update.password
-
+    async def update(self, db_user: User, user_update: dict) -> User:
+        stmt = update(User).where(User.id == db_user.id).values(**user_update)
+        await self.db.execute(stmt)
         await self.db.commit()
-        return db_user
-
-    async def update_username(self, db_user: User, user: UserBase) -> User:
-        db_user.username = user.username
-
-        await self.db.commit()
+        await self.db.refresh(db_user)
         return db_user
 
     async def get(self, user_id: int) -> User:
