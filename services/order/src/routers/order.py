@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from starlette import status
 from src.events.order import OrderEvents
 from src.services.order import OrderService
-from src.schemas.order import Order, OrderCreate, OrderUpdate, OrderPriceUpdate
+from src.schemas.order import Order, OrderCreate, OrderUpdate, OrderPatch
 from src.services.user import UserService
 from src.services.user_notification import UserNotificationService
 from fastapi import BackgroundTasks
@@ -45,20 +45,24 @@ async def update_order(order_id: int,
     if db_order is None:
         raise HTTPException(status_code=404, detail="Order not found!")
 
-    return await service.update(db_order=db_order, order=order)
+    return await service.update(db_order=db_order, order=order.dict())
 
 
 @router.patch("/{order_id}", response_model=Order, status_code=status.HTTP_200_OK)
 async def patch_order(order_id: int,
-                      order: OrderPriceUpdate,
+                      order: OrderPatch,
                       service: OrderService = Depends(),
                       _: str = Depends(basic_auth)):
+
+    updated_data = order.dict(exclude_unset=True)
+    if not updated_data:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY)
 
     db_order = await service.get(order_id)
     if db_order is None:
         raise HTTPException(status_code=404, detail="Order not found!")
 
-    return await service.update_price(db_order=db_order, order=order)
+    return await service.update(db_order=db_order, order=updated_data)
 
 
 @router.get("/", response_model=list[Order], status_code=status.HTTP_200_OK)
